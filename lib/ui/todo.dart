@@ -11,26 +11,24 @@ class TodoScreen extends StatefulWidget {
 }
 
 class TodoScreenState extends State {
-  List<Map<String, Object>> _listFood = [];
   List<Map<String, Object>> _listTask = [];
   List<Map<String, Object>> _listDone = [];
-  int _currentState = 0;
+  int _currentState = 0; // check state of Tab (Task or Complete)
   int countTodo = 0;
   int countDone = 0;
-  bool loading = false;
+  bool loading = false; // state to show loading
 
   Widget build(BuildContext context) {
     return _buildBody(context);
   }
 
   Widget _showCircularProgress() {
+    // show Loading when data not complete
     if (loading) {
-      return Container(
-          color: Color.fromARGB(200, 255, 255, 255),
-          child: Center(
-            child: FadingText('Loading...'),
-            // SizedBox(height: 32.0),
-          ));
+      return Scaffold(
+          body: Center(
+        child: FadingText('Loading...'),
+      ));
     }
     return Container(
       width: 0,
@@ -43,30 +41,25 @@ class TodoScreenState extends State {
     return StreamBuilder<QuerySnapshot>(
       stream: Firestore.instance.collection('todo').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return Container(
-              child: Center(
-            child: JumpingDotsProgressIndicator(
-              fontSize: 80.0,
-              milliseconds: 1000,
-              color: Colors.blueAccent,
-              numberOfDots: 4,
-              dotSpacing: 2,
-            ),
-          ));
-        return _buildList(context, snapshot.data.documents);
+        if (!snapshot.hasData) {
+          loading = true;
+          return _showCircularProgress();
+        }
+        return _buildList(context,
+            snapshot.data.documents); // return data on firebase as snapshot
       },
     );
   }
 
   Widget _buildList(BuildContext context, List<DocumentSnapshot> snapshot) {
-    _listTask.clear();
+    loading = false;
+    _listTask.clear(); // clear map when load data again
     _listDone.clear();
     if (_listTask.length + _listDone.length < snapshot.length) {
       for (int i = 0; i < snapshot.length; i++) {
         if (snapshot[i].data['done'] == 0) {
           _listTask.add({
-            'id': snapshot[i].documentID,
+            'id': snapshot[i].documentID, // get ID. use for delete
             "title": snapshot[i].data["title"].toString(),
             "done": false,
           });
@@ -78,9 +71,11 @@ class TodoScreenState extends State {
           });
         }
       }
+      // turn off loading...
     }
 
-    List _currentTab = <Widget>[
+// array of Bottom Tap widget
+    List _bottomTab = <Widget>[
       IconButton(
         icon: Icon(Icons.add),
         onPressed: () {
@@ -94,7 +89,7 @@ class TodoScreenState extends State {
           for (int i = 0; i < _listDone.length; i++) {
             Firestore.instance
                 .collection('todo')
-                .document(_listDone[i]['id'])
+                .document(_listDone[i]['id']) // delete todo by ID
                 .delete()
                 .catchError((e) {
               print(e);
@@ -104,6 +99,7 @@ class TodoScreenState extends State {
       )
     ];
 
+// list page of BottomBar
     List _currentScreen = [
       _listTask.length == 0
           ? Text("No data found..")
@@ -112,9 +108,6 @@ class TodoScreenState extends State {
               itemBuilder: (context, int position) {
                 return Column(
                   children: <Widget>[
-                    Divider(
-                      height: 5.0,
-                    ),
                     ListTile(
                       title: Text(
                         _listTask[position]['title'],
@@ -148,9 +141,6 @@ class TodoScreenState extends State {
               itemBuilder: (context, int position) {
                 return Column(
                   children: <Widget>[
-                    Divider(
-                      height: 5.0,
-                    ),
                     ListTile(
                       title: Text(
                         _listDone[position]['title'],
@@ -179,16 +169,21 @@ class TodoScreenState extends State {
             ),
     ];
     return DefaultTabController(
+      // Bottom Tab
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text("Todo"),
-          actions: <Widget>[
-            _currentState == 0 ? _currentTab[0] : _currentTab[1]
+          actions: <Widget>[_currentState == 0 ? _bottomTab[0] : _bottomTab[1]],
+        ),
+        body: Stack(
+          children: <Widget>[
+            Center(
+                child:
+                    _currentState == 0 ? _currentScreen[0] : _currentScreen[1]),
+            _showCircularProgress(), // loading...
           ],
         ),
-        body: Center(
-            child: _currentState == 0 ? _currentScreen[0] : _currentScreen[1]),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentState,
           items: [
